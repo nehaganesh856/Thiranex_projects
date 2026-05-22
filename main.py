@@ -2,149 +2,269 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import (
-    mean_absolute_error,
-    mean_squared_error,
-    r2_score
-)
+import os
 
 
-dates = pd.date_range(start='2022-01-01', periods=36, freq='ME')
-
-sales = [
-    200, 220, 250, 270, 300, 320,
-    350, 370, 390, 420, 450, 470,
-    500, 520, 550, 580, 600, 620,
-    650, 670, 700, 730, 760, 780,
-    800, 830, 860, 890, 920, 950,
-    980, 1000, 1030, 1060, 1090, 1120
+folders = [
+    "raw_data",
+    "cleaned_data",
+    "reports",
+    "charts"
 ]
 
-df = pd.DataFrame({
-    'Date': dates,
-    'Sales': sales
-})
+for folder in folders:
+    os.makedirs(folder, exist_ok=True)
+
+# =========================================================
+# CREATE SAMPLE DATASET (IF FILE DOES NOT EXIST)
+# =========================================================
+
+file_path = "raw_data/sales_data.csv"
+
+if not os.path.exists(file_path):
+
+    sample_data = {
+        "Order ID": [101, 102, 103, 104, 104, 105, 106, 107],
+        "Product": ["Laptop", "Mouse", "Keyboard", None,
+                    "Monitor", "mouse", "Laptop ", "Keyboard"],
+        "Quantity": [2, 5, np.nan, 3, 3, 4, 1, 2],
+        "Price": [50000, 500, 1500, 12000, 12000, np.nan, 52000, 1500],
+        "Date": [
+            "2025-01-10",
+            "2025-01-11",
+            "2025-01-12",
+            "2025-01-13",
+            "2025-01-13",
+            "2025-01-14",
+            "2025-01-15",
+            "2025-01-16"
+        ]
+    }
+
+    sample_df = pd.DataFrame(sample_data)
+
+    sample_df.to_csv(file_path, index=False)
+
+    print("Sample dataset created successfully!\n")
+
+# =========================================================
+# LOAD DATASET
+# =========================================================
+
+print("Loading Dataset...\n")
+
+df = pd.read_csv(file_path)
+
+print("Original Dataset:")
+print(df)
+
+# =========================================================
+# DATA CLEANING
+# =========================================================
+
+print("\n================ DATA CLEANING STARTED ================\n")
+
+# ---------------------------------------------------------
+# REMOVE EMPTY ROWS
+# ---------------------------------------------------------
+
+df.dropna(how='all', inplace=True)
+
+# ---------------------------------------------------------
+# REMOVE DUPLICATES
+# ---------------------------------------------------------
+
+df.drop_duplicates(inplace=True)
+
+# ---------------------------------------------------------
+# CLEAN COLUMN NAMES
+# ---------------------------------------------------------
+
+df.columns = df.columns.str.strip()
+
+# ---------------------------------------------------------
+# HANDLE MISSING VALUES
+# ---------------------------------------------------------
+
+# Fill missing Product names
+df['Product'] = df['Product'].fillna("Unknown")
+
+# Fill missing Quantity with mean
+df['Quantity'] = df['Quantity'].fillna(df['Quantity'].mean())
+
+# Fill missing Price with mean
+df['Price'] = df['Price'].fillna(df['Price'].mean())
+
+# ---------------------------------------------------------
+# FIX INCONSISTENT TEXT
+# ---------------------------------------------------------
+
+df['Product'] = df['Product'].str.strip()
+df['Product'] = df['Product'].str.title()
+
+# ---------------------------------------------------------
+# CONVERT DATE FORMAT
+# ---------------------------------------------------------
 
 df['Date'] = pd.to_datetime(df['Date'])
 
-df['Month_Number'] = np.arange(len(df))
+# ---------------------------------------------------------
+# CREATE NEW COLUMN
+# ---------------------------------------------------------
 
-df['Previous_Sales'] = df['Sales'].shift(1)
+df['Total'] = df['Quantity'] * df['Price']
 
-df['Rolling_Mean_3'] = df['Sales'].rolling(window=3).mean()
+# =========================================================
+# DISPLAY CLEANED DATA
+# =========================================================
 
-df.dropna(inplace=True)
+print("Cleaned Dataset:\n")
 
+print(df)
 
-X = df[['Month_Number', 'Previous_Sales', 'Rolling_Mean_3']]
-y = df['Sales']
+# =========================================================
+# SAVE CLEANED DATA
+# =========================================================
 
-split_index = int(len(df) * 0.8)
+cleaned_file = "cleaned_data/cleaned_sales_data.csv"
 
-X_train = X[:split_index]
-X_test = X[split_index:]
+df.to_csv(cleaned_file, index=False)
 
-y_train = y[:split_index]
-y_test = y[split_index:]
+print("\nCleaned data saved successfully!")
 
+# =========================================================
+# DATA ANALYSIS & REPORTING
+# =========================================================
 
-model = LinearRegression()
+print("\n================ REPORT GENERATION ================\n")
 
-model.fit(X_train, y_train)
+# ---------------------------------------------------------
+# BASIC STATISTICS
+# ---------------------------------------------------------
 
-predictions = model.predict(X_test)
+total_revenue = df['Total'].sum()
+average_sales = df['Total'].mean()
+highest_sale = df['Total'].max()
+lowest_sale = df['Total'].min()
 
+print(f"Total Revenue : {total_revenue}")
+print(f"Average Sales : {average_sales}")
+print(f"Highest Sale  : {highest_sale}")
+print(f"Lowest Sale   : {lowest_sale}")
 
+# ---------------------------------------------------------
+# PRODUCT WISE SALES
+# ---------------------------------------------------------
 
-mae = mean_absolute_error(y_test, predictions)
+product_sales = df.groupby('Product')['Total'].sum()
 
-rmse = np.sqrt(mean_squared_error(y_test, predictions))
+print("\nProduct Wise Sales:\n")
 
-r2 = r2_score(y_test, predictions)
+print(product_sales)
 
-print("\n===== MODEL PERFORMANCE =====")
-print(f"Mean Absolute Error : {mae:.2f}")
-print(f"Root Mean Squared Error : {rmse:.2f}")
-print(f"R2 Score : {r2:.2f}")
+# =========================================================
+# CREATE CHART
+# =========================================================
 
+print("\nGenerating Chart...\n")
 
+plt.figure(figsize=(8, 5))
 
-plt.figure(figsize=(10, 5))
+product_sales.plot(kind='bar')
 
-plt.plot(y_test.values, label='Actual Sales', marker='o')
+plt.title("Product Wise Revenue")
 
-plt.plot(predictions, label='Predicted Sales', marker='x')
+plt.xlabel("Products")
 
-plt.title('Actual vs Predicted Sales')
+plt.ylabel("Revenue")
 
-plt.xlabel('Test Data Points')
+plt.xticks(rotation=45)
 
-plt.ylabel('Sales')
+plt.tight_layout()
 
-plt.legend()
+chart_path = "charts/product_sales_chart.png"
 
-plt.grid(True)
+plt.savefig(chart_path)
 
 plt.show()
 
-future_months = 6
+print("Chart saved successfully!")
 
-last_month_number = df['Month_Number'].iloc[-1]
+# =========================================================
+# EXPORT EXCEL REPORT
+# =========================================================
 
-last_sales = df['Sales'].iloc[-1]
+report_file = "reports/summary_report.xlsx"
 
-last_rolling_mean = df['Rolling_Mean_3'].iloc[-1]
+with pd.ExcelWriter(report_file, engine='openpyxl') as writer:
 
-future_predictions = []
+    # Save cleaned data
+    df.to_excel(writer,
+                sheet_name='Cleaned Data',
+                index=False)
 
-print("\n===== FUTURE SALES FORECAST =====")
-
-for i in range(1, future_months + 1):
-
-    future_month = last_month_number + i
-
-    future_input = pd.DataFrame({
-        'Month_Number': [future_month],
-        'Previous_Sales': [last_sales],
-        'Rolling_Mean_3': [last_rolling_mean]
+    # Save summary report
+    summary_df = pd.DataFrame({
+        "Metric": [
+            "Total Revenue",
+            "Average Sales",
+            "Highest Sale",
+            "Lowest Sale"
+        ],
+        "Value": [
+            total_revenue,
+            average_sales,
+            highest_sale,
+            lowest_sale
+        ]
     })
 
-    future_sale = model.predict(future_input)[0]
+    summary_df.to_excel(writer,
+                        sheet_name='Summary',
+                        index=False)
 
-    future_predictions.append(future_sale)
+    # Save product sales
+    product_sales.to_excel(writer,
+                           sheet_name='Product Sales')
 
-    print(f"Month {i} Forecasted Sales: {future_sale:.2f}")
+print("\nExcel report generated successfully!")
 
-    last_sales = future_sale
+# =========================================================
+# FINAL OUTPUT
+# =========================================================
 
+print("\n================ PROJECT COMPLETED ================\n")
 
-plt.figure(figsize=(10, 5))
+print("Generated Files:")
 
-plt.plot(df['Sales'].values, label='Historical Sales', marker='o')
+print(f"1. Cleaned CSV  : {cleaned_file}")
+print(f"2. Excel Report : {report_file}")
+print(f"3. Sales Chart  : {chart_path}")
 
-future_x = np.arange(len(df), len(df) + future_months)
-
-plt.plot(future_x, future_predictions,
-         label='Future Forecast',
-         marker='x')
-
-plt.title('Sales Forecasting')
-
-plt.xlabel('Time')
-
-plt.ylabel('Sales')
-
-plt.legend()
-
-plt.grid(True)
-
-plt.show()
+print("\nAutomation Completed Successfully!")
 
 
-print("\n===== CLEANED DATASET =====")
-print(df.head())
+"""
+import streamlit as st
+import pandas as pd
 
-print("\n===== PREDICTED VALUES =====")
-print(predictions)
+df = pd.read_csv("cleaned_data/cleaned_sales_data.csv")
+
+st.title("Data Cleaning Dashboard")
+
+st.subheader("Cleaned Dataset")
+
+st.dataframe(df)
+
+st.metric("Total Revenue", round(df['Total'].sum(), 2))
+
+st.metric("Average Sales", round(df['Total'].mean(), 2))
+
+st.subheader("Product Wise Revenue")
+
+product_sales = df.groupby('Product')['Total'].sum()
+
+st.bar_chart(product_sales)
+
+st.success("Dashboard Loaded Successfully!")
+"""
